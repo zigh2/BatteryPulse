@@ -162,8 +162,9 @@ private fun EventRow(e: BatteryEvent) {
                 Fmt.kindLabel(ctx, e.kind) + "  ·  ${e.level}%"
             }
             Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
+            val stepText = if (e.kind == Kind.LEVEL && e.stepMs > 0) "  ·  ⏱ " + Fmt.duration(ctx, e.stepMs) else ""
             Text(
-                Fmt.dateTime(e.ts), style = MaterialTheme.typography.bodySmall,
+                Fmt.dateTime(e.ts) + stepText, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

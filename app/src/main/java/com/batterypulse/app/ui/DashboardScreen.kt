@@ -164,7 +164,7 @@ fun DashboardScreen(vm: MainVM, onToggle: () -> Unit) {
                         LineChart(
                             points = dash.levelPoints, fromX = now - DAY_MS, toX = now, yMin = 0f, yMax = 100f,
                             ySuffix = "%", color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.fillMaxSize(), bands = dash.chargeBands
+                            modifier = Modifier.fillMaxSize(), bands = dash.chargeBands, gaps = dash.gaps
                         )
                     }
                 }

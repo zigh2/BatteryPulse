@@ -18,15 +18,21 @@
 | | |
 |---|---|
 | **Per-percent log** | One row for every 1 % step with date, time (to the second), level, change, charger type, temperature, voltage, current and screen state. |
+| **Time per 1 %** | How long every single percent took, with average / median / fastest / slowest, by level band (0–19 / 20–79 / 80–100), with screen on and off, and a **charging curve** (minutes per 1 % by level). |
 | **Charge sessions** | Start and stop time, start and end level, time to reach 100 %, charger type (AC / USB / wireless), average and peak current, energy moved. |
 | **Discharge sessions** | Same data while on battery, plus how long the screen was on. |
 | **Screen tracking** | Every screen on / off with the battery level at that moment; total, daily average and longest use. |
 | **Charging speed** | %/hour and mA per session, per charger type, fastest session, average time to 100 %. |
 | **Discharge speed** | %/hour overall, **with screen on** and **with screen off**, and the estimated life of a full battery in each case. |
-| **Battery health** | Capacity measured from the charge counter (over long charges) compared with the design capacity, equivalent full cycles, and the OS-reported health / cycle count where the phone provides it. |
+| **Standby drain** | Battery lost while the screen stayed off for an hour or more (nights, idle), plus the worst period, the quickest way to spot a rogue app. |
+| **Charger comparison** | Speed, current and power per charger type (AC / USB / wireless) and the average time from 80 % to 100 %. |
+| **Battery health** | Capacity trend over the weeks and | Capacity measured from the charge counter (over long charges) compared with the design capacity, equivalent full cycles, and the OS-reported health / cycle count where the phone provides it. |
 | **Live dashboard** | Animated gauge, time to full or to empty, current, power, voltage, temperature, health status and a 24-hour chart with charging periods shaded. |
 | **Reports** | 24 h / 7 d / 30 d / all-time statistics with level, charging-speed, daily-discharge, daily-screen-time and temperature charts. |
 | **Export** | Multi-page **PDF report** (KPIs, charts, tables), **XLSX** (summary, events, sessions, daily), and CSV for events and sessions. Backup and restore of the whole database. |
+| **Widget and tile** | Home-screen widget and a Quick Settings tile with level, state and time left. |
+| **Weekly report** | A PDF report notification every 7 days (optional). |
+| **Gaps** | Periods with no data are shaded grey and the line is not drawn across them. |
 | **Alerts** | Fully charged, custom charge limit (e.g. 80 %), low battery and high temperature. |
 | **Private** | No internet permission, no ads, no analytics. Everything stays on the phone. |
 | **Look** | Material 3, light / dark / system, optional Material You colours, English and Arabic (RTL) with an in-app language switch. |

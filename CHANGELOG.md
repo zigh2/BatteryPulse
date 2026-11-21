@@ -3,6 +3,21 @@
 All notable changes are listed here. The newest version is on top.
 Release notes on GitHub are taken from the section matching the version.
 
+## [0.02]
+
+### Added
+- **Time per 1 %**: every 1 % step now stores how long it took. Shown in the history, with average, median, fastest and slowest, by level band (0–19, 20–79, 80–100), with screen on / off, and as a charging curve (minutes per 1 % by level). Included in PDF, XLSX and CSV.
+- Average time from 80 % to 100 %.
+- Charger comparison: sessions, speed, current and power per charger type.
+- Standby drain: battery lost while the screen stayed off for an hour or more, with the worst period.
+- Measured capacity trend over time (weekly).
+- Gaps: periods with no data are shaded grey in charts and the line is no longer drawn across them; total missing time is shown.
+- Home-screen widget and Quick Settings tile.
+- Weekly PDF report notification (can be turned off in Settings).
+
+### Changed
+- Database upgraded to version 2 (adds the step duration column); existing data is kept.
+
 ## [0.01]
 
 ### Added

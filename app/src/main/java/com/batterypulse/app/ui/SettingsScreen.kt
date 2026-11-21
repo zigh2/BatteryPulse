@@ -118,6 +118,9 @@ fun SettingsScreen(vm: MainVM, onMessage: (String) -> Unit) {
         item {
             Panel {
                 SectionTitle(stringResource(R.string.set_reliability))
+                SwitchRow(stringResource(R.string.set_weekly), stringResource(R.string.set_weekly_hint), st.weeklyReport) { v ->
+                    vm.settings.update { it.copy(weeklyReport = v) }
+                }
                 SwitchRow(stringResource(R.string.set_boot), stringResource(R.string.set_boot_hint), st.resumeOnBoot) { v ->
                     vm.settings.update { it.copy(resumeOnBoot = v) }
                 }

@@ -49,6 +49,24 @@ Reaching 100 % while a charger is connected writes one `FULL` row per session.
 - **Cycles.** Equivalent cycles = total discharged percent / 100. If the OS reports a cycle count (Android 14+), that is shown instead.
 - **Time remaining** extrapolates the speed of the last six 1 % steps of the current session.
 
+## Time per 1 %
+
+A `LEVEL` row stores `step_ms`: the time since the previous level change of the same session. The first step of every
+session (after plug / unplug or a restart) is partial and stored as -1, so it is never averaged. A jump of 2 % counts as
+two steps of half the time (`perPctMs`). Statistics: average, median, fastest, slowest, by level band and as a charging curve.
+
+## Gaps and standby
+
+A `STOP` row followed by a later row is a gap (tracking was off). Charts break the line there and shade it grey.
+Standby drain only uses screen-off periods of at least one hour inside a discharge session: percent lost between the
+screen turning off and on again, divided by the hours.
+
+## Widget, tile, weekly report
+
+`BatteryWidget` is refreshed by the service on every level change. `BatteryTile` reads the current state when the panel
+opens. Once every 7 days the service builds a PDF with `ReportBuilder` + `Exporter` and posts a notification; the last four
+reports stay in `files/reports/`.
+
 ## Exports
 
 CSV, XLSX (hand-written OOXML in a zip) and PDF (`android.graphics.pdf`) are written without third-party libraries.

@@ -22,7 +22,7 @@ class Store(private val ctx: Context) {
                     ts INTEGER NOT NULL, kind INTEGER NOT NULL, level INTEGER NOT NULL, prev INTEGER NOT NULL,
                     charging INTEGER NOT NULL, plug INTEGER NOT NULL, temp_deci INTEGER NOT NULL,
                     mv INTEGER NOT NULL, ma INTEGER, uah INTEGER NOT NULL, screen INTEGER NOT NULL,
-                    session_id INTEGER NOT NULL)"""
+                    session_id INTEGER NOT NULL, step_ms INTEGER NOT NULL DEFAULT -1)"""
             )
             db.execSQL("CREATE INDEX idx_events_ts ON events(ts)")
             db.execSQL(
@@ -37,12 +37,14 @@ class Store(private val ctx: Context) {
             db.execSQL("CREATE INDEX idx_sessions_start ON sessions(start_ms)")
         }
 
-        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+        override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+            if (oldVersion < 2) db.execSQL("ALTER TABLE events ADD COLUMN step_ms INTEGER NOT NULL DEFAULT -1")
+        }
     }
 
     companion object {
         const val DB_NAME = "batterypulse.db"
-        const val DB_VERSION = 1
+        const val DB_VERSION = 2
     }
 
     private var helper = Helper(ctx)
@@ -62,6 +64,7 @@ class Store(private val ctx: Context) {
             put("temp_deci", e.tempDeci); put("mv", e.voltageMv)
             if (e.currentMa != null) put("ma", e.currentMa) else putNull("ma")
             put("uah", e.uah); put("screen", if (e.screenOn) 1 else 0); put("session_id", e.sessionId)
+            put("step_ms", e.stepMs)
         }
         val id = db.insert("events", null, v)
         bump()
@@ -72,10 +75,10 @@ class Store(private val ctx: Context) {
         id = c.getLong(0), ts = c.getLong(1), kind = c.getInt(2), level = c.getInt(3), prevLevel = c.getInt(4),
         charging = c.getInt(5) == 1, plug = c.getInt(6), tempDeci = c.getInt(7), voltageMv = c.getInt(8),
         currentMa = if (c.isNull(9)) null else c.getInt(9), uah = c.getLong(10),
-        screenOn = c.getInt(11) == 1, sessionId = c.getLong(12),
+        screenOn = c.getInt(11) == 1, sessionId = c.getLong(12), stepMs = c.getLong(13),
     )
 
-    private val eventCols = "id, ts, kind, level, prev, charging, plug, temp_deci, mv, ma, uah, screen, session_id"
+    private val eventCols = "id, ts, kind, level, prev, charging, plug, temp_deci, mv, ma, uah, screen, session_id, step_ms"
 
     @Synchronized
     fun events(from: Long, to: Long, kinds: List<Int>? = null, limit: Int = 50_000, newestFirst: Boolean = false): List<BatteryEvent> {

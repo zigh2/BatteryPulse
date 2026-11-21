@@ -59,7 +59,7 @@
     <string name="capacity_design">الأصلية: %1$d مللي أمبير</string>
     <string name="health_needs_data">تحتاج عدة عمليات شحن</string>
     <string name="chart_level_24h">مستوى البطارية خلال 24 ساعة</string>
-    <string name="chart_charging_shaded">الخلفية الخضراء = أثناء الشحن</string>
+    <string name="chart_charging_shaded">أخضر = أثناء الشحن، رمادي = لا بيانات (التتبع كان متوقفًا)</string>
     <string name="summary_24h">آخر 24 ساعة</string>
     <string name="kv_discharged">المستهلك</string>
     <string name="kv_charged">المشحون</string>
@@ -118,7 +118,6 @@
     <string name="kv_avg_duration">متوسط المدة</string>
     <string name="kv_avg_to_full" formatted="false">متوسط الوقت حتى 100%</string>
     <string name="kv_full_charges" formatted="false">مرات الوصول إلى 100%</string>
-    <string name="kv_speed_via">السرعة عبر %1$s</string>
     <string name="plug_ac">شاحن حائط</string>
     <string name="plug_usb">USB</string>
     <string name="plug_wireless">لاسلكي</string>
@@ -222,4 +221,33 @@
     <string name="col_screen_min">الشاشة (د)</string>
     <string name="col_discharged_pct" formatted="false">المستهلك %</string>
     <string name="col_charged_pct" formatted="false">المشحون %</string>
+    <string name="sec_steps" formatted="false">الوقت لكل 1%</string>
+    <string name="kv_steps_count">الخطوات المقاسة</string>
+    <string name="kv_step_avg" formatted="false">المتوسط لكل 1%</string>
+    <string name="kv_step_median" formatted="false">الوسيط لكل 1%</string>
+    <string name="kv_step_fastest" formatted="false">أسرع 1%</string>
+    <string name="kv_step_slowest" formatted="false">أبطأ 1%</string>
+    <string name="kv_step_screen_on" formatted="false">لكل 1% والشاشة تعمل</string>
+    <string name="kv_step_screen_off" formatted="false">لكل 1% والشاشة مطفأة</string>
+    <string name="kv_band_low" formatted="false">عند 0–19%</string>
+    <string name="kv_band_mid" formatted="false">عند 20–79%</string>
+    <string name="kv_band_high" formatted="false">عند 80–100%</string>
+    <string name="step_bands_hint" formatted="false">الوقت لكل 1% حسب المستوى: الشحن | التفريغ</string>
+    <string name="chart_charge_curve" formatted="false">منحنى الشحن: دقائق لكل 1% حسب المستوى</string>
+    <string name="kv_80_100" formatted="false">متوسط الوقت من 80% إلى 100%</string>
+    <string name="sec_chargers">مقارنة الشواحن</string>
+    <string name="kv_idle">استهلاك السكون (شاشة مطفأة ساعة+)</string>
+    <string name="kv_idle_hours">وقت السكون المقاس</string>
+    <string name="kv_idle_worst">أسوأ فترة سكون</string>
+    <string name="kv_gap_total">بيانات مفقودة (التتبع متوقف)</string>
+    <string name="chart_trend">السعة المقاسة عبر الزمن (مللي أمبير، أسبوعيًا)</string>
+    <string name="col_step_s" formatted="false">مدة 1% (ث)</string>
+    <string name="col_step_short" formatted="false">مدة 1%</string>
+    <string name="set_weekly">تقرير PDF أسبوعي</string>
+    <string name="set_weekly_hint">إشعار بتقرير الأسبوع كل 7 أيام (يجب أن يكون التتبع يعمل)</string>
+    <string name="weekly_channel">التقرير الأسبوعي</string>
+    <string name="weekly_title">تقريرك الأسبوعي للبطارية جاهز</string>
+    <string name="weekly_text">اضغط لفتح ملف PDF</string>
+    <string name="weekly_share">مشاركة</string>
+    <string name="widget_desc">مستوى البطارية والحالة والوقت المتبقي</string>
 </resources>

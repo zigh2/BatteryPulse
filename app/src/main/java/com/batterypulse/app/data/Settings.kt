@@ -22,6 +22,8 @@ data class SettingsState(
     val retentionDays: Int = 365,
     /** Manual design capacity in mAh; 0 = detect automatically. */
     val designMah: Int = 0,
+    /** Post a PDF report notification every 7 days. */
+    val weeklyReport: Boolean = true,
 )
 
 class SettingsStore(context: Context) {
@@ -45,6 +47,7 @@ class SettingsStore(context: Context) {
             tempLimitC = sp.getInt("temp_c", d.tempLimitC).coerceIn(30, 60),
             retentionDays = sp.getInt("retention", d.retentionDays).coerceIn(7, 3650),
             designMah = sp.getInt("design_mah", d.designMah).coerceIn(0, 30000),
+            weeklyReport = sp.getBoolean("weekly", d.weeklyReport),
         )
     }
 
@@ -65,6 +68,7 @@ class SettingsStore(context: Context) {
             .putInt("temp_c", n.tempLimitC)
             .putInt("retention", n.retentionDays)
             .putInt("design_mah", n.designMah)
+            .putBoolean("weekly", n.weeklyReport)
             .apply()
     }
 
@@ -81,4 +85,8 @@ class SettingsStore(context: Context) {
     var lastHeartbeat: Long
         get() = sp.getLong("heartbeat", 0L)
         set(v) { sp.edit().putLong("heartbeat", v).apply() }
+
+    var lastWeekly: Long
+        get() = sp.getLong("last_weekly", 0L)
+        set(v) { sp.edit().putLong("last_weekly", v).apply() }
 }

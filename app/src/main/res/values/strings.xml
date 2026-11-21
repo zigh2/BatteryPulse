@@ -59,7 +59,7 @@
     <string name="capacity_design">Design: %1$d mAh</string>
     <string name="health_needs_data">Needs a few full charges</string>
     <string name="chart_level_24h">Battery level, last 24 hours</string>
-    <string name="chart_charging_shaded">Green background = charging</string>
+    <string name="chart_charging_shaded">Green = charging, grey = no data (tracking was off)</string>
     <string name="summary_24h">Last 24 hours</string>
     <string name="kv_discharged">Discharged</string>
     <string name="kv_charged">Charged</string>
@@ -118,7 +118,6 @@
     <string name="kv_avg_duration">Average duration</string>
     <string name="kv_avg_to_full" formatted="false">Average time to 100%</string>
     <string name="kv_full_charges" formatted="false">Times reached 100%</string>
-    <string name="kv_speed_via">Speed via %1$s</string>
     <string name="plug_ac">AC charger</string>
     <string name="plug_usb">USB</string>
     <string name="plug_wireless">Wireless</string>
@@ -222,4 +221,33 @@
     <string name="col_screen_min">Screen on (min)</string>
     <string name="col_discharged_pct" formatted="false">Discharged %</string>
     <string name="col_charged_pct" formatted="false">Charged %</string>
+    <string name="sec_steps" formatted="false">Time per 1%</string>
+    <string name="kv_steps_count">Steps measured</string>
+    <string name="kv_step_avg" formatted="false">Average per 1%</string>
+    <string name="kv_step_median" formatted="false">Median per 1%</string>
+    <string name="kv_step_fastest" formatted="false">Fastest 1%</string>
+    <string name="kv_step_slowest" formatted="false">Slowest 1%</string>
+    <string name="kv_step_screen_on" formatted="false">Per 1%, screen on</string>
+    <string name="kv_step_screen_off" formatted="false">Per 1%, screen off</string>
+    <string name="kv_band_low" formatted="false">At 0–19%</string>
+    <string name="kv_band_mid" formatted="false">At 20–79%</string>
+    <string name="kv_band_high" formatted="false">At 80–100%</string>
+    <string name="step_bands_hint" formatted="false">Time per 1% by level: charging | discharging</string>
+    <string name="chart_charge_curve" formatted="false">Charging curve: minutes per 1% by level</string>
+    <string name="kv_80_100" formatted="false">Average 80% to 100%</string>
+    <string name="sec_chargers">Charger comparison</string>
+    <string name="kv_idle">Standby drain (screen off 1 h+)</string>
+    <string name="kv_idle_hours">Standby time measured</string>
+    <string name="kv_idle_worst">Worst standby period</string>
+    <string name="kv_gap_total">Missing data (tracking off)</string>
+    <string name="chart_trend">Measured capacity over time (mAh, weekly)</string>
+    <string name="col_step_s" formatted="false">1% time (s)</string>
+    <string name="col_step_short" formatted="false">1% time</string>
+    <string name="set_weekly">Weekly PDF report</string>
+    <string name="set_weekly_hint">A notification with last week\'s report every 7 days (tracking must be running)</string>
+    <string name="weekly_channel">Weekly report</string>
+    <string name="weekly_title">Your weekly battery report is ready</string>
+    <string name="weekly_text">Tap to open the PDF</string>
+    <string name="weekly_share">Share</string>
+    <string name="widget_desc">Battery level, state and time left</string>
 </resources>

@@ -187,6 +187,7 @@ fun LineChart(
     color: Color,
     modifier: Modifier = Modifier,
     bands: List<LongRange> = emptyList(),
+    gaps: List<LongRange> = emptyList(),
     step: Boolean = true,
     xLabel: (Long) -> String = { Fmt.hm(it) },
 ) {
@@ -211,6 +212,11 @@ fun LineChart(
             val x1 = px(b.last)
             if (x1 > x0) drawRect(Brand.Charge.copy(alpha = 0.13f), Offset(x0, top), Size(x1 - x0, h))
         }
+        for (g in gaps) {
+            val x0 = px(g.first)
+            val x1 = px(g.last)
+            if (x1 > x0) drawRect(label.copy(alpha = 0.16f), Offset(x0, top), Size(x1 - x0, h))
+        }
         for (i in 0..4) {
             val v = yMin + (yMax - yMin) * i / 4f
             val y = py(v)
@@ -228,28 +234,42 @@ fun LineChart(
             drawContext.canvas.nativeCanvas.drawText(xLabel(fromX + ((toX - fromX) * i / 3)), x, size.height - 3.dp.toPx(), paint)
         }
 
-        val pts = points.filter { it.x in fromX..toX }.sortedBy { it.x }
-        if (pts.isEmpty()) return@Canvas
-        val line = Path()
-        val fill = Path()
-        line.moveTo(px(pts[0].x), py(pts[0].y))
-        fill.moveTo(px(pts[0].x), top + h)
-        fill.lineTo(px(pts[0].x), py(pts[0].y))
-        for (i in 1 until pts.size) {
-            if (step) {
-                line.lineTo(px(pts[i].x), py(pts[i - 1].y)); fill.lineTo(px(pts[i].x), py(pts[i - 1].y))
+        // A NaN point splits the line into segments (tracking was off in between).
+        val pts = points.filter { it.y.isNaN() || it.x in fromX..toX }.sortedBy { it.x }
+        val segments = ArrayList<List<XY>>()
+        var seg = ArrayList<XY>()
+        for (p in pts) {
+            if (p.y.isNaN()) {
+                if (seg.isNotEmpty()) segments.add(seg)
+                seg = ArrayList()
+            } else {
+                seg.add(p)
             }
-            line.lineTo(px(pts[i].x), py(pts[i].y)); fill.lineTo(px(pts[i].x), py(pts[i].y))
         }
-        if (step) {
-            line.lineTo(px(toX), py(pts.last().y)); fill.lineTo(px(toX), py(pts.last().y))
-            fill.lineTo(px(toX), top + h)
-        } else {
-            fill.lineTo(px(pts.last().x), top + h)
+        if (seg.isNotEmpty()) segments.add(seg)
+        val endsBroken = pts.lastOrNull()?.y?.isNaN() == true
+        segments.forEachIndexed { si, sp ->
+            val extend = step && si == segments.lastIndex && !endsBroken
+            val line = Path()
+            val fill = Path()
+            line.moveTo(px(sp[0].x), py(sp[0].y))
+            fill.moveTo(px(sp[0].x), top + h)
+            fill.lineTo(px(sp[0].x), py(sp[0].y))
+            for (i in 1 until sp.size) {
+                if (step) {
+                    line.lineTo(px(sp[i].x), py(sp[i - 1].y)); fill.lineTo(px(sp[i].x), py(sp[i - 1].y))
+                }
+                line.lineTo(px(sp[i].x), py(sp[i].y)); fill.lineTo(px(sp[i].x), py(sp[i].y))
+            }
+            val endX = if (extend) px(toX) else px(sp.last().x)
+            if (extend) {
+                line.lineTo(endX, py(sp.last().y)); fill.lineTo(endX, py(sp.last().y))
+            }
+            fill.lineTo(endX, top + h)
+            fill.close()
+            drawPath(fill, color.copy(alpha = 0.10f))
+            drawPath(line, color, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
-        fill.close()
-        drawPath(fill, color.copy(alpha = 0.10f))
-        drawPath(line, color, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 

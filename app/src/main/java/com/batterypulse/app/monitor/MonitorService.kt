@@ -17,14 +17,19 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.batterypulse.app.BatteryPulseApp
 import com.batterypulse.app.R
+import androidx.core.content.FileProvider
 import com.batterypulse.app.data.Analytics
+import com.batterypulse.app.data.DAY_MS
 import com.batterypulse.app.data.BatteryEvent
 import com.batterypulse.app.data.Fmt
 import com.batterypulse.app.data.Kind
 import com.batterypulse.app.data.LocaleHelper
 import com.batterypulse.app.data.SType
 import com.batterypulse.app.data.Session
+import com.batterypulse.app.export.Exporter
+import com.batterypulse.app.export.ReportBuilder
 import com.batterypulse.app.ui.MainActivity
+import java.io.File
 import java.util.concurrent.Executors
 
 /**
@@ -36,12 +41,14 @@ class MonitorService : Service() {
     companion object {
         const val CHANNEL_ID = "monitor"
         const val ALERT_CHANNEL_ID = "alerts"
+        const val REPORT_CHANNEL_ID = "reports"
         const val ACTION_STOP = "com.batterypulse.app.STOP"
         private const val NOTIF_ID = 1
         private const val ALERT_FULL = 11
         private const val ALERT_LIMIT = 12
         private const val ALERT_LOW = 13
         private const val ALERT_TEMP = 14
+        private const val ALERT_WEEKLY = 15
         private const val TICK_MS = 60_000L
 
         fun start(ctx: Context) {
@@ -66,6 +73,7 @@ class MonitorService : Service() {
     private var lastLevel = -1
     private var screenOn = false
     private var screenAccrueAt = 0L
+    private var stepAnchor = -1L
     private var lastNotifAt = 0L
     private var lastNotifLevel = -1
     private var alertedFull = false
@@ -107,6 +115,7 @@ class MonitorService : Service() {
             io.execute {
                 if (snap != null) handleBattery(snap, now)
                 app.settings.lastHeartbeat = now
+                maybeWeeklyReport(now)
             }
             ui.postDelayed(this, TICK_MS)
         }
@@ -205,10 +214,10 @@ class MonitorService : Service() {
 
     // ------------------------------------------------------------------ event handling (io thread)
 
-    private fun ev(kind: Int, s: Snap, now: Long, prev: Int) = BatteryEvent(
+    private fun ev(kind: Int, s: Snap, now: Long, prev: Int, stepMs: Long = -1L) = BatteryEvent(
         id = 0, ts = now, kind = kind, level = s.level, prevLevel = prev, charging = s.charging, plug = s.plug,
         tempDeci = s.tempDeci, voltageMv = s.voltageMv, currentMa = s.currentMa, uah = s.uah,
-        screenOn = screenOn, sessionId = cur?.id ?: 0L,
+        screenOn = screenOn, sessionId = cur?.id ?: 0L, stepMs = stepMs,
     )
 
     private fun accrueScreen(now: Long) {
@@ -227,6 +236,7 @@ class MonitorService : Service() {
         )
         cur = draft.copy(id = app.store.insertSession(draft))
         screenAccrueAt = now
+        stepAnchor = -1L // the first 1 % of a new session is partial, so it is not timed
     }
 
     private fun closeSession(s: Snap, now: Long) {
@@ -254,7 +264,10 @@ class MonitorService : Service() {
         }
 
         if (s.level != lastLevel) {
-            app.store.insertEvent(ev(Kind.LEVEL, s, now, lastLevel))
+            // Time since the previous level change of this session; -1 for the first (partial) step.
+            val step = if (stepAnchor > 0) now - stepAnchor else -1L
+            app.store.insertEvent(ev(Kind.LEVEL, s, now, lastLevel, step))
+            stepAnchor = now
             lastLevel = s.level
             persist = true
         }
@@ -309,6 +322,7 @@ class MonitorService : Service() {
             lastNotifAt = now
             lastNotifLevel = s.level
             getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(live))
+            BatteryWidget.refresh(this)
         }
     }
 
@@ -373,6 +387,45 @@ class MonitorService : Service() {
         try {
             getSystemService(NotificationManager::class.java).notify(id, n)
         } catch (_: SecurityException) {
+        }
+    }
+
+    /** Once every 7 days: build the last week's PDF and post a notification that opens it. */
+    private fun maybeWeeklyReport(now: Long) {
+        val st = app.settings.state.value
+        if (!st.weeklyReport || closed) return
+        val last = app.settings.lastWeekly
+        if (last == 0L) {
+            app.settings.lastWeekly = now
+            return
+        }
+        if (now - last < 7 * DAY_MS) return
+        app.settings.lastWeekly = now
+        try {
+            val data = ReportBuilder.data(this, app.store, st, 1) ?: return
+            val dir = File(filesDir, "reports").apply { mkdirs() }
+            val out = File(dir, "weekly_${Fmt.date(now)}.pdf")
+            Exporter.export(this, Exporter.Format.PDF, data).copyTo(out, overwrite = true)
+            dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(4)?.forEach { it.delete() }
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", out)
+            val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/pdf")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            val share = Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("application/pdf").putExtra(Intent.EXTRA_STREAM, uri)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), null
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            val n = NotificationCompat.Builder(this, REPORT_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_battery)
+                .setContentTitle(getString(R.string.weekly_title))
+                .setContentText(getString(R.string.weekly_text))
+                .setAutoCancel(true)
+                .setContentIntent(PendingIntent.getActivity(this, 2, view, flags))
+                .addAction(0, getString(R.string.weekly_share), PendingIntent.getActivity(this, 3, share, flags))
+                .build()
+            getSystemService(NotificationManager::class.java).notify(ALERT_WEEKLY, n)
+        } catch (_: Exception) {
         }
     }
 

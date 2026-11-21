@@ -7,7 +7,6 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.batterypulse.app.BatteryPulseApp
-import com.batterypulse.app.R
 import com.batterypulse.app.data.Analytics
 import com.batterypulse.app.data.BatteryEvent
 import com.batterypulse.app.data.Capacity
@@ -16,9 +15,8 @@ import com.batterypulse.app.data.Kind
 import com.batterypulse.app.data.LocaleHelper
 import com.batterypulse.app.data.Report
 import com.batterypulse.app.data.Session
-import com.batterypulse.app.export.ExportData
 import com.batterypulse.app.export.Exporter
-import com.batterypulse.app.monitor.BatteryReader
+import com.batterypulse.app.export.ReportBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,25 +47,8 @@ class MainVM(app: Application) : AndroidViewModel(app) {
     /** History window: 0 = today, 1 = 7 days, 2 = 30 days, 3 = everything. */
     val historyRange = MutableStateFlow(0)
 
-    private fun rangeStart(index: Int, now: Long, firstTs: Long?, today: Boolean): Long = when (index) {
-        0 -> if (today) Analytics.dayStart(now) else now - DAY_MS
-        1 -> now - 7 * DAY_MS
-        2 -> now - 30 * DAY_MS
-        else -> firstTs ?: (now - DAY_MS)
-    }
-
     val capacity: StateFlow<Capacity> = combine(store.changes, settings.state) { _, st -> st }
-        .mapLatest { st ->
-            val ctx = getApplication<Application>()
-            val now = System.currentTimeMillis()
-            val design = if (st.designMah > 0) st.designMah else BatteryReader.designCapacityMah(ctx)
-            Capacity(
-                estimatedMah = Analytics.estimateCapacityMah(store.sessions(0L, now)),
-                designMah = design,
-                osHealthPct = BatteryReader.osHealthPct(ctx),
-                osCycles = BatteryReader.read(ctx, BatteryReader.sticky(ctx))?.osCycles,
-            )
-        }
+        .mapLatest { st -> ReportBuilder.capacity(getApplication<Application>(), store, st) }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.Eagerly, Capacity())
 
@@ -84,7 +65,7 @@ class MainVM(app: Application) : AndroidViewModel(app) {
     val report: StateFlow<Report> = combine(reportRange, store.changes) { r, _ -> r }
         .mapLatest { r ->
             val now = System.currentTimeMillis()
-            val from = rangeStart(r, now, store.firstTs(), today = false)
+            val from = ReportBuilder.rangeStart(r, now, store.firstTs(), today = false)
             Analytics.build(store.events(from, now), store.sessions(from, now), from, now)
         }
         .flowOn(Dispatchers.IO)
@@ -94,7 +75,7 @@ class MainVM(app: Application) : AndroidViewModel(app) {
         combine(historyRange, eventFilter, store.changes) { r, f, _ -> Pair(r, f) }
             .mapLatest { (r, f) ->
                 val now = System.currentTimeMillis()
-                val from = rangeStart(r, now, store.firstTs(), today = true)
+                val from = ReportBuilder.rangeStart(r, now, store.firstTs(), today = true)
                 val kinds = when (f) {
                     1 -> listOf(Kind.LEVEL)
                     2 -> listOf(Kind.PLUGGED, Kind.UNPLUGGED, Kind.FULL)
@@ -109,7 +90,7 @@ class MainVM(app: Application) : AndroidViewModel(app) {
     val historySessions: StateFlow<List<Session>> = combine(historyRange, store.changes) { r, _ -> r }
         .mapLatest { r ->
             val now = System.currentTimeMillis()
-            val from = rangeStart(r, now, store.firstTs(), today = true)
+            val from = ReportBuilder.rangeStart(r, now, store.firstTs(), today = true)
             store.sessions(from, now).reversed()
         }
         .flowOn(Dispatchers.IO)
@@ -150,30 +131,7 @@ class MainVM(app: Application) : AndroidViewModel(app) {
         io({
             try {
                 val ctx = LocaleHelper.wrap(getApplication<Application>())
-                val now = System.currentTimeMillis()
-                val from = rangeStart(idx, now, store.firstTs(), today = false)
-                val events = store.events(from, now)
-                if (events.isEmpty()) {
-                    null
-                } else {
-                    val sessions = store.sessions(from, now)
-                    val label = ctx.getString(
-                        when (idx) {
-                            0 -> R.string.range_24h
-                            1 -> R.string.range_7d
-                            2 -> R.string.range_30d
-                            else -> R.string.range_all
-                        }
-                    )
-                    Exporter.export(
-                        ctx, kind,
-                        ExportData(
-                            report = Analytics.build(events, sessions, from, now),
-                            events = events, sessions = sessions, capacity = capacity.value,
-                            from = from, to = now, rangeLabel = label,
-                        )
-                    )
-                }
+                ReportBuilder.data(ctx, store, settings.state.value, idx)?.let { Exporter.export(ctx, kind, it) }
             } catch (e: Exception) {
                 null
             }

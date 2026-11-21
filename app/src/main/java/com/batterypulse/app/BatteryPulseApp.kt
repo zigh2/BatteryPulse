@@ -34,5 +34,10 @@ class BatteryPulseApp : Application() {
                 enableVibration(true)
             }
         )
+        nm.createNotificationChannel(
+            NotificationChannel(
+                MonitorService.REPORT_CHANNEL_ID, getString(R.string.weekly_channel), NotificationManager.IMPORTANCE_DEFAULT
+            )
+        )
     }
 }

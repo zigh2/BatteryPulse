@@ -33,7 +33,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.batterypulse.app.R
 import com.batterypulse.app.data.Fmt
 import com.batterypulse.app.data.HOUR_MS
-import com.batterypulse.app.data.Plug
 import com.batterypulse.app.data.Report
 import com.batterypulse.app.export.Exporter
 import java.io.File
@@ -96,6 +95,21 @@ fun ReportsScreen(vm: MainVM, onMessage: (String) -> Unit) {
                 KeyValue(stringResource(R.string.kv_design_capacity), Fmt.mah(cap.designMah))
                 KeyValue(stringResource(R.string.kv_measured_capacity), Fmt.mah(cap.estimatedMah))
                 KeyValue(stringResource(R.string.kv_os_health), cap.osHealthPct?.let { "$it%" } ?: "—")
+                if (cap.trend.size >= 2) {
+                    Text(
+                        stringResource(R.string.chart_trend), style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp)
+                    )
+                    val lo = cap.trend.minOf { it.y } * 0.97f
+                    val hi = (cap.trend.maxOf { it.y } * 1.03f).coerceAtLeast(lo + 50f)
+                    Box(Modifier.fillMaxWidth().height(130.dp).padding(top = 8.dp)) {
+                        LineChart(
+                            points = cap.trend, fromX = cap.trend.first().x, toX = cap.trend.last().x, yMin = lo, yMax = hi,
+                            ySuffix = "", color = Brand.Health, modifier = Modifier.fillMaxSize(), step = false,
+                            xLabel = { Fmt.dayShort(it) }
+                        )
+                    }
+                }
             }
         }
 
@@ -103,13 +117,18 @@ fun ReportsScreen(vm: MainVM, onMessage: (String) -> Unit) {
         item {
             Panel {
                 SectionTitle(stringResource(R.string.chart_level))
+                Text(
+                    stringResource(R.string.chart_charging_shaded), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Box(Modifier.fillMaxWidth().height(180.dp).padding(top = 8.dp)) {
                     if (r.levelPoints.size < 2) NoData() else LineChart(
                         points = r.levelPoints, fromX = r.from, toX = r.to, yMin = 0f, yMax = 100f, ySuffix = "%",
-                        color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxSize(), bands = r.chargeBands,
+                        color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxSize(), bands = r.chargeBands, gaps = r.gaps,
                         xLabel = { if (r.to - r.from <= 36 * HOUR_MS) Fmt.hm(it) else Fmt.dayShort(it) }
                     )
                 }
+                if (r.gapMs > 0) KeyValue(stringResource(R.string.kv_gap_total), Fmt.duration(ctx, r.gapMs))
             }
         }
 
@@ -126,8 +145,49 @@ fun ReportsScreen(vm: MainVM, onMessage: (String) -> Unit) {
                 KeyValue(stringResource(R.string.kv_avg_to_full), Fmt.durationOrDash(ctx, r.avgTimeTo100Ms))
                 KeyValue(stringResource(R.string.kv_full_charges), r.fullCharges.toString())
                 KeyValue(stringResource(R.string.kv_charged), "${r.chargedPct}%")
-                r.chargeByPlug.entries.sortedBy { it.key }.forEach { (plug, speed) ->
-                    KeyValue(stringResource(R.string.kv_speed_via, Fmt.plug(ctx, plug)), Fmt.pctH(speed))
+                KeyValue(stringResource(R.string.kv_80_100), Fmt.durationOrDash(ctx, r.avg80to100Ms))
+            }
+        }
+        if (r.chargers.isNotEmpty()) {
+            item {
+                Panel {
+                    SectionTitle(stringResource(R.string.sec_chargers))
+                    r.chargers.forEach { c ->
+                        KeyValue("${Fmt.plug(ctx, c.plug)} ×${c.sessions}", Fmt.charger(c))
+                    }
+                }
+            }
+        }
+        item {
+            Panel {
+                SectionTitle(stringResource(R.string.sec_steps))
+                StepBlock(stringResource(R.string.sec_charging), r.chargeStep, Brand.Charge)
+                StepBlock(stringResource(R.string.sec_discharging), r.dischargeStep, Brand.Discharge)
+                Text(
+                    stringResource(R.string.step_bands_hint), style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp)
+                )
+                val bandNames = listOf(R.string.kv_band_low, R.string.kv_band_mid, R.string.kv_band_high)
+                bandNames.forEachIndexed { i, name ->
+                    KeyValue(
+                        stringResource(name),
+                        Fmt.durationOrDash(ctx, r.chargeBandMs.getOrNull(i)) + "  |  " +
+                            Fmt.durationOrDash(ctx, r.dischargeBandMs.getOrNull(i))
+                    )
+                }
+                KeyValue(stringResource(R.string.kv_step_screen_on), Fmt.durationOrDash(ctx, r.screenOnStepMs))
+                KeyValue(stringResource(R.string.kv_step_screen_off), Fmt.durationOrDash(ctx, r.screenOffStepMs))
+            }
+        }
+        if (r.chargeCurve.any { it > 0f }) {
+            item {
+                Panel {
+                    SectionTitle(stringResource(R.string.chart_charge_curve))
+                    BarChart(
+                        values = r.chargeCurve, labels = List(10) { ((it + 1) * 10).toString() }, color = Brand.Charge,
+                        modifier = Modifier.fillMaxWidth().height(150.dp).padding(top = 8.dp),
+                        valueLabel = { String.format(Locale.US, "%.1f", it) }
+                    )
                 }
             }
         }
@@ -158,6 +218,15 @@ fun ReportsScreen(vm: MainVM, onMessage: (String) -> Unit) {
                 KeyValue(stringResource(R.string.kv_life_screen_on), Fmt.hours(r.screenOnLifeHours))
                 KeyValue(stringResource(R.string.kv_life_screen_off), Fmt.hours(r.screenOffLifeHours))
                 KeyValue(stringResource(R.string.kv_discharged), "${r.dischargedPct}%")
+                KeyValue(stringResource(R.string.kv_idle), Fmt.pctH(r.idle.pctH))
+                KeyValue(stringResource(R.string.kv_idle_hours), if (r.idle.hours > 0) Fmt.hours(r.idle.hours) else "—")
+                val worstTs = r.idle.worstTs
+                if (worstTs != null) {
+                    KeyValue(
+                        stringResource(R.string.kv_idle_worst),
+                        Fmt.pctH(r.idle.worstPctH) + " (" + Fmt.dayShort(worstTs) + " " + Fmt.hm(worstTs) + ")"
+                    )
+                }
             }
         }
         item {
@@ -229,6 +298,24 @@ fun ReportsScreen(vm: MainVM, onMessage: (String) -> Unit) {
                 ) { Text(stringResource(R.string.export_csv_sessions)) }
             }
         }
+    }
+}
+
+@Composable
+private fun StepBlock(title: String, st: com.batterypulse.app.data.StepStats?, color: Color) {
+    val ctx = LocalContext.current
+    Text(
+        title, style = MaterialTheme.typography.labelLarge, color = color, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 8.dp)
+    )
+    if (st == null) {
+        KeyValue(stringResource(R.string.kv_steps_count), "—")
+    } else {
+        KeyValue(stringResource(R.string.kv_steps_count), st.count.toString())
+        KeyValue(stringResource(R.string.kv_step_avg), Fmt.duration(ctx, st.avgMs))
+        KeyValue(stringResource(R.string.kv_step_median), Fmt.duration(ctx, st.medianMs))
+        KeyValue(stringResource(R.string.kv_step_fastest), Fmt.durationAt(ctx, st.minMs, st.minTs))
+        KeyValue(stringResource(R.string.kv_step_slowest), Fmt.durationAt(ctx, st.maxMs, st.maxTs))
     }
 }
 

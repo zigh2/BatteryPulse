@@ -46,8 +46,13 @@ data class BatteryEvent(
     val uah: Long,
     val screenOn: Boolean,
     val sessionId: Long,
+    /** For LEVEL rows: time since the previous level change of the same session, or -1 when that step is partial. */
+    val stepMs: Long = -1L,
 ) {
     val delta: Int get() = if (prevLevel >= 0) level - prevLevel else 0
+
+    /** Time this event took per 1 % (a jump of 2 % counts half), or -1 when unknown. */
+    val perPctMs: Long get() = if (kind == Kind.LEVEL && stepMs > 0 && delta != 0) stepMs / abs(delta) else -1L
 }
 
 /** One continuous charging or discharging period. */

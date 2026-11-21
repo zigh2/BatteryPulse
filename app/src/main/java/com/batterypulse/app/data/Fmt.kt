@@ -47,6 +47,15 @@ object Fmt {
         }
     }
 
+    /** "14m 20s (05-12 14:20)": a duration with the moment it happened. */
+    fun durationAt(c: Context, ms: Long, ts: Long): String = "${duration(c, ms)} (${dayShort(ts)} ${hm(ts)})"
+
+    fun charger(c: ChargerStat): String = listOfNotNull(
+        c.pctH?.let { pctH(it) },
+        c.avgMa?.let { ma(it) },
+        c.avgW?.let { String.format(Locale.US, "%.1f W", it) },
+    ).joinToString(" · ").ifEmpty { "—" }
+
     fun durationOrDash(c: Context, ms: Long?): String = if (ms == null) "—" else duration(c, ms)
 
     fun plug(c: Context, plug: Int): String = when {

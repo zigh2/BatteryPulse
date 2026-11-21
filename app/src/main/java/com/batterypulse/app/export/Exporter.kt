@@ -77,7 +77,7 @@ object Exporter {
 
     private fun eventHeader(ctx: Context) = listOf(
         R.string.col_no, R.string.col_time, R.string.col_event, R.string.col_level, R.string.col_change,
-        R.string.col_state, R.string.col_plug, R.string.col_temp_c, R.string.col_voltage_v,
+        R.string.col_step_s, R.string.col_state, R.string.col_plug, R.string.col_temp_c, R.string.col_voltage_v,
         R.string.col_current_ma, R.string.col_screen, R.string.col_session
     ).map { ctx.getString(it) }
 
@@ -85,6 +85,7 @@ object Exporter {
         listOf(
             i + 1, Fmt.dateTime(e.ts), Fmt.kindLabel(ctx, e.kind), e.level,
             if (e.kind == Kind.LEVEL) e.delta else null,
+            if (e.kind == Kind.LEVEL && e.stepMs > 0) e.stepMs / 1000 else null,
             stateText(ctx, e), if (e.charging) Fmt.plug(ctx, e.plug) else "",
             if (e.tempDeci > 0) e.tempDeci / 10.0 else null,
             if (e.voltageMv > 0) e.voltageMv / 1000.0 else null,
@@ -137,6 +138,11 @@ object Exporter {
             listOf(s(R.string.kv_max_speed) + " (" + s(R.string.sec_charging) + ")", Fmt.pctH(r.maxChargePctH)),
             listOf(s(R.string.kv_avg_current) + " (" + s(R.string.sec_charging) + ")", Fmt.ma(r.avgChargeMa)),
             listOf(s(R.string.kv_avg_to_full), Fmt.durationOrDash(ctx, r.avgTimeTo100Ms)),
+            listOf(s(R.string.kv_80_100), Fmt.durationOrDash(ctx, r.avg80to100Ms)),
+            listOf(s(R.string.kv_step_avg) + " (" + s(R.string.sec_charging) + ")", Fmt.durationOrDash(ctx, r.chargeStep?.avgMs)),
+            listOf(s(R.string.kv_step_avg) + " (" + s(R.string.sec_discharging) + ")", Fmt.durationOrDash(ctx, r.dischargeStep?.avgMs)),
+            listOf(s(R.string.kv_idle), Fmt.pctH(r.idle.pctH)),
+            listOf(s(R.string.kv_gap_total), Fmt.duration(ctx, r.gapMs)),
             listOf(s(R.string.kv_full_charges), r.fullCharges.toString()),
             listOf(s(R.string.kv_avg_speed) + " (" + s(R.string.sec_discharging) + ")", Fmt.pctH(r.dischargePctH)),
             listOf(s(R.string.kv_speed_screen_on), Fmt.pctH(r.screenOnPctH)),
@@ -253,7 +259,7 @@ object Exporter {
             ),
             Sheet(
                 ctx.getString(R.string.sheet_events), eventHeader(ctx),
-                listOf(6, 21, 20, 8, 9, 14, 14, 10, 10, 12, 12, 9), eventRows(ctx, d)
+                listOf(6, 21, 20, 8, 9, 12, 14, 14, 10, 10, 12, 12, 9), eventRows(ctx, d)
             ),
             Sheet(
                 ctx.getString(R.string.sheet_sessions), sessionHeader(ctx),
@@ -445,7 +451,7 @@ object Exporter {
 
         fun lineChart(
             h: Float, pts: List<XY>, from: Long, to: Long, yMin: Float, yMax: Float, suffix: String,
-            color: Int, bands: List<LongRange>, step: Boolean
+            color: Int, bands: List<LongRange>, step: Boolean, gaps: List<LongRange> = emptyList()
         ) {
             ensure(h + 8f)
             val left = m + 30f
@@ -455,6 +461,12 @@ object Exporter {
             val span = (to - from).coerceAtLeast(1L).toFloat()
             fun px(x: Long) = left + ((x - from).coerceIn(0L, to - from)) / span * w
             fun py(v: Float) = top + ph - ((v - yMin) / (yMax - yMin)).coerceIn(0f, 1f) * ph
+            fill.color = Color.parseColor("#E5E7EB")
+            for (g in gaps) {
+                val x0 = px(g.first)
+                val x1 = px(g.last)
+                if (x1 > x0) c.drawRect(x0, top, x1, top + ph, fill)
+            }
             fill.color = Color.parseColor("#DCFCE7")
             for (b in bands) {
                 val x0 = px(b.first)
@@ -476,15 +488,24 @@ object Exporter {
                 val al = when (i) { 0 -> Paint.Align.LEFT; 3 -> Paint.Align.RIGHT; else -> Paint.Align.CENTER }
                 c.drawText(label, left + w * i / 3f, top + ph + 13f, paint(8f, gray, false, al))
             }
-            val p = pts.filter { it.x in from..to }.sortedBy { it.x }
-            if (p.isNotEmpty()) {
+            val p = pts.filter { it.y.isNaN() || it.x in from..to }.sortedBy { it.x }
+            if (p.any { !it.y.isNaN() }) {
                 val path = Path()
-                path.moveTo(px(p[0].x), py(p[0].y))
-                for (i in 1 until p.size) {
-                    if (step) path.lineTo(px(p[i].x), py(p[i - 1].y))
-                    path.lineTo(px(p[i].x), py(p[i].y))
+                var prevY: Float? = null
+                for (pt in p) {
+                    if (pt.y.isNaN()) {
+                        prevY = null
+                        continue
+                    }
+                    if (prevY == null) {
+                        path.moveTo(px(pt.x), py(pt.y))
+                    } else {
+                        if (step) path.lineTo(px(pt.x), py(prevY))
+                        path.lineTo(px(pt.x), py(pt.y))
+                    }
+                    prevY = pt.y
                 }
-                if (step) path.lineTo(px(to), py(p.last().y))
+                if (step && prevY != null) path.lineTo(px(to), py(prevY))
                 stroke.color = color; stroke.strokeWidth = 1.6f
                 stroke.strokeJoin = Paint.Join.ROUND
                 c.drawPath(path, stroke)
@@ -587,7 +608,7 @@ object Exporter {
 
             section(s(R.string.chart_level))
             lineChart(
-                150f, r.levelPoints, r.from, r.to, 0f, 100f, "%", dark, r.chargeBands, step = true
+                150f, r.levelPoints, r.from, r.to, 0f, 100f, "%", dark, r.chargeBands, step = true, gaps = r.gaps
             )
             c.drawText(s(R.string.chart_charging_shaded), m, y + 2f, paint(8f, gray))
             y += 14f
@@ -605,8 +626,8 @@ object Exporter {
                     s(R.string.kv_avg_to_full) to Fmt.durationOrDash(ctx, r.avgTimeTo100Ms),
                     s(R.string.kv_full_charges) to r.fullCharges.toString(),
                     s(R.string.kv_charged) to "${r.chargedPct}%",
-                ) + r.chargeByPlug.entries.sortedBy { it.key }
-                    .map { ctx.getString(R.string.kv_speed_via, Fmt.plug(ctx, it.key)) to Fmt.pctH(it.value) },
+                    s(R.string.kv_80_100) to Fmt.durationOrDash(ctx, r.avg80to100Ms),
+                ),
                 s(R.string.sec_discharging),
                 listOf(
                     s(R.string.kv_sessions) to r.dischargeSessions.toString(),
@@ -618,10 +639,61 @@ object Exporter {
                     s(R.string.kv_life_screen_on) to Fmt.hours(r.screenOnLifeHours),
                     s(R.string.kv_life_screen_off) to Fmt.hours(r.screenOffLifeHours),
                     s(R.string.kv_discharged) to "${r.dischargedPct}%",
+                    s(R.string.kv_idle) to Fmt.pctH(r.idle.pctH),
+                    s(R.string.kv_idle_hours) to if (r.idle.hours > 0) Fmt.hours(r.idle.hours) else "—",
                 )
             )
 
+            // ---- time per 1 %, charging curve, chargers
             newPage()
+            section(s(R.string.sec_steps))
+            fun stepRows(st: com.batterypulse.app.data.StepStats?): List<Pair<String, String>> =
+                if (st == null) listOf(s(R.string.kv_steps_count) to "—") else listOf(
+                    s(R.string.kv_steps_count) to st.count.toString(),
+                    s(R.string.kv_step_avg) to Fmt.duration(ctx, st.avgMs),
+                    s(R.string.kv_step_median) to Fmt.duration(ctx, st.medianMs),
+                    s(R.string.kv_step_fastest) to Fmt.durationAt(ctx, st.minMs, st.minTs),
+                    s(R.string.kv_step_slowest) to Fmt.durationAt(ctx, st.maxMs, st.maxTs),
+                )
+            fun band(l: List<Long?>, i: Int) = Fmt.durationOrDash(ctx, l.getOrNull(i))
+            twoColumns(
+                s(R.string.sec_charging),
+                stepRows(r.chargeStep) + listOf(
+                    s(R.string.kv_band_low) to band(r.chargeBandMs, 0),
+                    s(R.string.kv_band_mid) to band(r.chargeBandMs, 1),
+                    s(R.string.kv_band_high) to band(r.chargeBandMs, 2),
+                ),
+                s(R.string.sec_discharging),
+                stepRows(r.dischargeStep) + listOf(
+                    s(R.string.kv_band_low) to band(r.dischargeBandMs, 0),
+                    s(R.string.kv_band_mid) to band(r.dischargeBandMs, 1),
+                    s(R.string.kv_band_high) to band(r.dischargeBandMs, 2),
+                    s(R.string.kv_step_screen_on) to Fmt.durationOrDash(ctx, r.screenOnStepMs),
+                    s(R.string.kv_step_screen_off) to Fmt.durationOrDash(ctx, r.screenOffStepMs),
+                )
+            )
+            if (r.chargeCurve.any { it > 0f }) {
+                section(s(R.string.chart_charge_curve))
+                barChart(120f, r.chargeCurve, List(10) { ((it + 1) * 10).toString() }, green) {
+                    String.format(Locale.US, "%.1f", it)
+                }
+            }
+            if (r.chargers.isNotEmpty()) {
+                section(s(R.string.sec_chargers))
+                table(
+                    listOf(s(R.string.col_plug), s(R.string.kv_sessions), "%/h", "mA", "W"),
+                    listOf(150f, 70f, 100f, 100f, 103f),
+                    r.chargers.map {
+                        listOf(
+                            Fmt.plug(ctx, it.plug), it.sessions.toString(),
+                            it.pctH?.let { v -> String.format(Locale.US, "%.1f", v) } ?: "—",
+                            it.avgMa?.toString() ?: "—",
+                            it.avgW?.let { v -> String.format(Locale.US, "%.1f", v) } ?: "—",
+                        )
+                    },
+                    colorCol = -1, colors = { green }
+                )
+            }
             section(s(R.string.chart_daily_screen))
             val days = r.days.takeLast(30)
             barChart(120f, days.map { it.screenOnMs / HOUR_MS.toFloat() }, days.map { Fmt.dayShort(it.dayStart) }, violet) {
@@ -692,22 +764,23 @@ object Exporter {
                 section(s(R.string.hist_events))
                 c.drawText(ctx.getString(R.string.pdf_events_note, ev.size), m, y - 4f, paint(8f, gray))
                 y += 8f
-                val widths = listOf(108f, 90f, 40f, 34f, 70f, 55f, 50f, 76f)
+                val widths = listOf(100f, 80f, 36f, 30f, 46f, 60f, 40f, 40f, 91f)
                 table(
-                    listOf(s(R.string.col_time), s(R.string.col_event), s(R.string.col_level), "Δ", s(R.string.col_state),
-                        s(R.string.col_temp_c), "mA", s(R.string.col_screen)),
+                    listOf(s(R.string.col_time), s(R.string.col_event), s(R.string.col_level), "Δ", s(R.string.col_step_short),
+                        s(R.string.col_state), "°C", "mA", s(R.string.col_screen)),
                     widths,
                     ev.map { e ->
                         listOf(
                             Fmt.dateTime(e.ts), Fmt.kindLabel(ctx, e.kind), "${e.level}%",
                             if (e.kind == Kind.LEVEL) (if (e.delta > 0) "+${e.delta}" else e.delta.toString()) else "",
+                            if (e.kind == Kind.LEVEL && e.stepMs > 0) Fmt.duration(ctx, e.stepMs) else "",
                             stateText(ctx, e),
                             if (e.tempDeci > 0) String.format(Locale.US, "%.1f", e.tempDeci / 10.0) else "—",
                             e.currentMa?.let { abs(it).toString() } ?: "—",
                             s(if (e.screenOn) R.string.screen_on else R.string.screen_off),
                         )
                     },
-                    colorCol = 4, colors = { i -> if (ev[i].charging) green else amber }
+                    colorCol = 5, colors = { i -> if (ev[i].charging) green else amber }
                 )
             }
 
